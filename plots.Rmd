@@ -1,0 +1,279 @@
+---
+title: "ANOVA_two_tasks"
+author: "Annie Ke"
+date: "2023-10-24"
+output: 
+ html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r}
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr,dplyr)
+library(ggplot2)
+```
+
+```{r}
+setwd("C:/Users/sukia/Desktop/OSF_re250424")
+data <-read.xlsx("C:/Users/sukia/Desktop/OSF_re250424/des_person.xlsx")
+```
+
+```{r}
+# RT
+data_RT_elmn <- data %>%
+  filter(!(Subject == 111 & Brain == "IFG" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 132 & Brain == "IFG" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 106 & Brain == "vertex" & cost == "sc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 104 & Brain == "IFG" & cost == "mc" & Task == "linguistic")) %>%
+  filter(!(Subject == 116 & Brain == "IFG" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 104 & Brain == "pTL" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 116 & Brain == "pTL" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 105 & Brain == "vertex"))
+
+write.xlsx(data_RT_elmn,"C:/Users/sukia/Desktop/OSF_re250424/chk.xlsx")
+
+data_mdsd_RT <- data_RT_elmn%>%group_by(Brain,cost,Task)%>%
+  summarise(RT_mean = round(mean(RT)),
+            RT_sd = round(sd(RT)))
+
+# ER
+data_ER_elmn <- data %>%
+  filter(!(Subject == 123 & Brain == "IFG" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 133 & Brain == "IFG" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 133 & Brain == "pTL" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 115 & Brain == "vertex" & cost == "sc" & Task == "linguistic")) %>%
+  filter(!(Subject == 124 & Brain == "vertex" & cost == "sc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 127 & Brain == "vertex" & cost == "sc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 120 & Brain == "vertex" & cost == "mc" & Task == "linguistic")) %>%
+  filter(!(Subject == 133 & Brain == "vertex" & cost == "mc" & Task == "linguistic")) %>%
+  filter(!(Subject == 135 & Brain == "vertex" & cost == "mc" & Task == "linguistic")) %>%
+  filter(!(Subject == 133 & Brain == "IFG" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 126 & Brain == "pTL" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 133 & Brain == "vertex" & cost == "mc" & Task == "nonlinguistic")) %>%
+  filter(!(Subject == 105 & Brain == "vertex"))
+
+data_mdsd_ER <- data_ER_elmn%>%group_by(Brain,cost,Task)%>%
+  summarise(ER_mean = round(mean(ER)*100,2),
+            ER_sd = round(sd(ER)*100,2))
+```
+
+# plots/costs
+```{r}
+# sc RT
+data_scRT_elmn <- subset(data_RT_elmn, cost != "mc")
+
+ggplot(data_scRT_elmn, aes(x = Brain, y = RT, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'Switching Costs (ms)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -2,
+               aes(label = round(after_stat(y), 0)),
+               color = "black")+
+  facet_wrap(~ Task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+
+
+# mc RT
+data_mcRT_elmn <- subset(data_RT_elmn, cost != "sc")
+
+ggplot(data_mcRT_elmn, aes(x = Brain, y = RT, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'Mixing Costs (ms)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -1,
+               aes(label = round(after_stat(y), 0)),
+               color = "black")+
+  facet_wrap(~ Task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+
+# sc ER
+data_ER_elmn[,6] <- data_ER_elmn[,6]*100
+data_scER_elmn <- subset(data_ER_elmn, cost != "mc")
+
+ggplot(data_scER_elmn, aes(x = Brain, y = ER, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'Switching Costs (%)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -0.7,
+               aes(label = round(after_stat(y), 2)),
+               color = "black")+
+  facet_wrap(~ Task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+
+
+# mc ER
+data_mcER_elmn <- subset(data_ER_elmn, cost != "sc")
+
+ggplot(data_mcER_elmn, aes(x = Brain, y = ER, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'Mixing Costs (%)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -0.7,
+               aes(label = round(after_stat(y), 2)),
+               color = "black")+
+  facet_wrap(~ Task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+
+```
+
+# plots/overall
+```{r}
+# language
+setwd("D:/Wulab_bz/EXP_cTBS_ECandBLC_0707/combine_0601_0707/BY_R")
+data_lang <-read.xlsx("D:/Wulab_bz/EXP_cTBS_ECandBLC_0707/combine_0601_0707/BY_R/data_iER_sum.xlsx")
+data_lang <- data_lang[,c(1,2,6,9,4)]
+colnames(data_lang)[2] <- "Brain"
+data_lang$task <- "Verbal"
+
+# non-verbal
+setwd("C:/Users/sukia/Desktop/dt_reanalysis/revised_mixeffect0403/ver3/data_analysis")
+data_nonlang <-read.xlsx("C:/Users/sukia/Desktop/dt_reanalysis/revised_mixeffect0403/ver3/data_analysis/taskswitch_iER.xlsx")
+
+data_nonlang$Brain[data_nonlang$Brain == 111] <- "IFG"
+data_nonlang$Brain[data_nonlang$Brain == 112] <- "pTL"
+data_nonlang$Brain[data_nonlang$Brain == 113] <- "vertex"
+
+data_nonlang <- data_nonlang[,c(1,2,3,9,6)]
+colnames(data_nonlang)[3] <- "Trialtype"
+data_nonlang$task <- "Nonverbal"
+```
+
+# overall RTs
+```{r}
+dt_lg <- data_lang %>%
+  filter(ACC == 1 & !is.na(RT)) %>%
+  filter(!(Subject == 111 & Brain == "IFG" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 132 & Brain == "IFG" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 104 & Brain == "IFG" & (Trialtype == "B" | Trialtype == "R")))
+
+dt_nl <- data_nonlang %>%
+  filter(ACC == 1 & !is.na(RT)) %>%
+  filter(!(Subject == 106 & Brain == "vertex" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 116 & Brain == "IFG" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 104 & Brain == "pTL" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 116 & Brain == "pTL" & (Trialtype == "B" | Trialtype == "R")))
+
+dt_RT <- rbind(dt_lg,dt_nl)
+
+dt_RT_plot <- dt_RT %>%
+  group_by(Subject,Brain,task) %>%
+  summarise(meanRT = mean(RT))
+
+dt_RT_plot$task <- factor(dt_RT_plot$task, levels = c("Verbal", "Nonverbal"))
+
+ggplot(dt_RT_plot, aes(x = Brain, y = meanRT, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'overall RTs (ms)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -0.5,
+               aes(label = round(after_stat(y), 0)),
+               color = "black")+
+  facet_wrap(~ task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+```
+
+# overall ERs
+```{r}
+dt_la <- data_lang %>%
+  filter(!(Subject == 123 & Brain == "IFG" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 133 & Brain == "IFG" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 133 & Brain == "pTL" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 115 & Brain == "vertex" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 120 & Brain == "vertex" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 133 & Brain == "vertex" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 135 & Brain == "vertex" & (Trialtype == "B" | Trialtype == "R")))
+
+dt_no <- data_nonlang %>%
+  filter(!(Subject == 124 & Brain == "vertex" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 127 & Brain == "vertex" & (Trialtype == "S" | Trialtype == "R"))) %>%
+  filter(!(Subject == 133 & Brain == "IFG" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 126 & Brain == "pTL" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 129 & Brain == "pTL" & (Trialtype == "B" | Trialtype == "R"))) %>%
+  filter(!(Subject == 133 & Brain == "vertex" & (Trialtype == "B" | Trialtype == "R")))
+
+dt_ER <- rbind(dt_la,dt_no)
+
+dt_ER_plot <- dt_ER %>%
+  group_by(Subject,Brain,task) %>%
+  summarise(meanER = mean(1-ACC)*100)
+
+dt_ER_plot$task <- factor(dt_ER_plot$task, levels = c("Verbal", "Nonverbal"))
+
+ggplot(dt_ER_plot, aes(x = Brain, y = meanER, fill = Brain)) +
+  geom_violin(trim = FALSE,  alpha = 0.4,draw_quantiles = c(0.25, 0.5, 0.75),linetype="dashed",width=0.4) +
+  geom_violin(aes(fill = Brain),
+              trim = FALSE,  alpha = 0.4,width=0.4) +
+  geom_jitter(shape=20, aes(fill=Brain),position = position_jitter(width=0.1)) +
+  labs(x='Brain', y = 'overall ERs (%)') + 
+  theme_pubr() + 
+  theme(legend.position = 'none',
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16)) +
+  labs(tag = "b)")+
+  stat_summary(fun=mean,geom="point",shape=16,size=2,color="red")+
+  stat_summary(fun = mean, geom = "text",
+               vjust = -1,
+               hjust = -0.5,
+               aes(label = sprintf("%.2f", after_stat(y))),
+               color = "black")+
+  facet_wrap(~ task)+
+  theme(strip.text = element_text(size = 12, face = "bold",hjust = 0.5, vjust = 1),
+        strip.background = element_rect(fill = "white",color = "black", linetype = "solid"))
+```

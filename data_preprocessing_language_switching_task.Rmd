@@ -1,0 +1,116 @@
+---
+title: "Bilingual Language control"
+author: "Annie Ke"
+date: "2023-07-06"
+output: 
+ html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r}
+##--------------install and library packages
+# install.packages(c("pacman","R.utils"))
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr)
+```
+
+```{r}
+data <-read.xlsx("C:/Users/sukia/Desktop/OSF_re250424/lang_raw.xlsx")
+```
+
+```{r}
+data <- select(data,c("subject","Brain_region","Item","Stimulus_ACC","Language","Trialtype","RESP","RESP_code","Time_Start"))
+names(data)[1:9] <- c("Subject","Brain_region","Item","ACC","Language","Trialtype","RESP","RESP_code","RT")
+data$RT <- data$RT%>%as.numeric()
+data <- data%>%mutate(RT = RT*1000-500)
+```
+
+```{r}
+data$RT.Good <- ifelse(floor(data$RESP_code/10)%%10 %in% c(5,8) | floor(data$RESP_code/100) %in% c(5,8),0,ifelse(floor(data$RESP_code/10)%%10 ==9 | floor(data$RESP_code/100)==9,0,1))
+
+#data$RT.NotGood <- ifelse(floor(data$Ancode/10)%%10 %in% c(5,8) | floor(data$Ancode/100) %in% c(5,8),1,ifelse(floor(data$Ancode/10)%%10 ==9 | floor(data$Ancode/100)==9,2,0))
+
+data$ACC.Concept <- ifelse(data$RESP_code%%10 %in% c(1,2),1,ifelse(data$RESP_code%%10 ==3 | data$RESP_code==0,0,NaN))
+
+data$ACC.Language <- ifelse(floor(data$RESP_code/10)%%10 %in% c(6,8) | floor(data$RESP_code/100) %in% c(6,8) | data$RESP_code==0,0,1)
+
+data$ACC <- 1
+data$ACC.LanguageAfter <- 1
+tmp <- data$RESP_code%>%as.numeric()
+#eliminate language error after
+for (i in 2:nrow(data)){
+  if (is.na(tmp[i-1]))
+  {next}
+  else if (tmp[i-1] == 0 | (floor(tmp[i-1]/10)%%10 == 6))
+  {data[i,"ACC"] <- NA
+  data[i,"ACC.LanguageAfter"] <- 0
+  }
+}
+
+data$ACC <- data$ACC * data$ACC.Concept * data$ACC.Language 
+```
+
+
+# 剔除极端值
+```{r}
+data_total<- data%>%mutate(n=row_number())
+
+## remove trials of language errors
+tmp <- data_total$ACC.Language
+data.tmp <- data_total%>%subset(tmp==1) # 1 = good
+ntrials.language.error <- nrow(data_total) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials after language errors
+tmp <- data.remain$ACC.LanguageAfter
+data.tmp <- data.remain%>%subset(tmp==1) # 1 = trials after language error
+ntrials.after.language.error <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials of concept errors
+tmp <- data.remain$ACC.Concept
+data.tmp <- data.remain%>%subset(tmp==1) # 1 = good
+ntrials.concept.error <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials of hesitation, changes
+tmp <- data.remain$RT.Good
+data.tmp <- data.remain%>%subset(tmp==1) # 1 = good
+ntrials.RT.NotGood <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials of absolute extremes
+data.tmp <-  data.remain%>%subset(RT > 300)%>%subset(RT < 2200)
+ntrials.absolute.RT <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials of relative extremes
+data.tmp <-  data.remain%>% group_by(Subject) %>% filter(abs(RT - mean(RT)) < (sd(RT) * 2.5))
+ntrials.relative.RT <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+ntrials.removed <- c(ntrials.language.error, 
+                     ntrials.after.language.error, 
+                     ntrials.concept.error,  
+                     ntrials.RT.NotGood,
+                     ntrials.absolute.RT, 
+                     ntrials.relative.RT) 
+
+ntrials.removed.Rate <-  (ntrials.removed/nrow(data_total))%>%round(4)*100
+```
+    Trials named in a wrong language (`r ntrials.removed.Rate[1]`%), trials after naming in a wrong language (`r ntrials.removed.Rate[2]`%), trials named the wrong word in the correct language (`r ntrials.removed.Rate[3]`%), trials there was hesitations (`r ntrials.removed.Rate[4]`%), trials there were recording failures or absolute outliers (below 300 ms or above 2200 ms, `r ntrials.removed.Rate[5]`%), and trials of relative outliers (2.5 SDs above or below individual’s mean, `r ntrials.removed.Rate[6]`%) were excluded in the following statistical analyses.
+    
+# 计算iER
+# iER = item error rate
+```{r}
+datanew <- data_total%>%subset(select = -c(RT, RESP_code, RT.Good, 
+                                            ACC.Language,ACC.LanguageAfter, ACC.Concept))
+datanew <- left_join(datanew,subset(data.remain,select = c(RT,n),by = "n"))
+
+data.ER.group <- datanew%>%group_by(Subject, Item)%>%summarise(iER=1-mean(ACC, na.rm = TRUE))
+datanew <- left_join(datanew,data.ER.group, by = c("Subject","Item"))%>% subset(is.na(data$ACC) == 0)
+
+# write.xlsx(datanew,"C:/Users/sukia/Desktop/OSF_re250424/data_iER_sum.xlsx")
+```

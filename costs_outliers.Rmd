@@ -1,0 +1,28 @@
+---
+title: "minus_outliers"
+author: "Annie Ke"
+date: "2024-04-04"
+output: html_document
+---
+
+```{r}
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr,dplyr)
+```
+
+```{r}
+setwd("C:/Users/sukia/Desktop/dt_reanalysis/revised_mixeffect0403/ver3/data_analysis")
+data <-read.xlsx("C:/Users/sukia/Desktop/dt_reanalysis/revised_mixeffect0403/ver3/data_analysis/des_person.xlsx")
+```
+
+
+```{r}
+outlier.RT <- data%>%
+  group_by(Task,cost)%>%
+  filter(abs(RT - mean(RT)) > (sd(RT) * 2.5))%>%
+  select(1:5)
+
+outlier.ER <- data%>%
+  group_by(Task,cost)%>%
+  filter(abs(ER - mean(ER)) > (sd(ER) * 2.5))%>%
+  select(c(1:4,6))
+```

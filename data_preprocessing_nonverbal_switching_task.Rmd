@@ -1,0 +1,103 @@
+---
+title: "Bilingual Language control"
+author: "Hongfu Qu"
+date: "2023-06-03"
+output: 
+ html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r}
+##--------------install and library packages
+# install.packages(c("pacman","R.utils"))
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr)
+```
+
+
+```{r}
+setwd("C:/Users/sukia/Desktop/OSF_re250424")
+data <-read.xlsx("C:/Users/sukia/Desktop/OSF_re250424/task_raw.xlsx")
+```
+
+# 表格整理
+```{r}
+data$RT <- data$RT%>%as.numeric()
+data <- data%>%mutate(RT = RT*1000)
+```
+
+
+# 错误试次及其后一个试次，剔除极端值
+```{r}
+data_total <- data %>%
+  mutate(n=row_number())
+
+## find trials after error
+data_total$ACC_raw <- data_total$ACC
+data_total$ACC_cal_after <- 1
+data_total$ACC_cal <- 1
+
+tmp <- data_total$ACC%>%as.numeric()
+for (i in 2:nrow(data_total)){
+  if (is.na(data_total$ACC[i-1]))
+  {next}
+  else if (tmp[i-1] == 0)
+  {data_total[i,"ACC_cal"] <- NA 
+  data_total[i,"ACC_cal_after"] <- 0
+  }
+}
+
+data_total$ACC <- data_total$ACC_cal * data$ACC
+
+# ## calculate NA in $ACC_cal
+# ntrials.error <- sum(is.na(data_total$ACC_cal)) # =error number
+# # or data.NA.num <- nrow(subset(data_total, is.na(ACC_cal)))
+
+## remove errors
+tmp <- data_total$ACC_raw
+data.tmp <- data_total%>%subset(tmp==1)
+ntrials.error <- nrow(data_total) - nrow(data.tmp)
+data.remain <- data.tmp
+
+
+## remove errors after 
+tmp <- data.remain$ACC_cal_after
+data.tmp <- data.remain%>%subset(tmp==1) # 1 = good
+ntrials.error.after <- nrow(data.remain) - nrow(data.tmp) 
+data.remain <- data.tmp
+
+
+## 极端值
+## remove trials of absolute extremes
+data.tmp <-  data.remain%>%subset(RT > 300)%>%subset(RT < 2200)
+ntrials.absolute.RT <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+## remove trials of relative extremes
+data.tmp <-  data.remain%>% group_by(Subject) %>% filter(abs(RT - mean(RT)) < (sd(RT) * 2.5))
+ntrials.relative.RT <- nrow(data.remain) - nrow(data.tmp)
+data.remain <- data.tmp
+
+ntrials.removed <- c(ntrials.error,
+                     ntrials.error.after,
+                     ntrials.absolute.RT,
+                     ntrials.relative.RT)
+
+
+ntrials.removed.Rate <-  (ntrials.removed/nrow(data_total))%>%round(4)*100
+```
+
+    
+# 计算iER
+```{r}
+datanew <- data_total%>%subset(select = -c(RT,ACC_cal_after,ACC_cal))
+datanew <- left_join(datanew,subset(data.remain,select = c(RT,n),by = "n"))
+
+data.ER.group <- datanew%>%group_by(Subject, Item)%>%summarise(iER=1-mean(ACC, na.rm = TRUE))
+datanew <- left_join(datanew, data.ER.group, by = c("Subject", "Item")) %>%
+  filter(!is.na(ACC))
+
+# write.xlsx(datanew,"C:/Users/sukia/Desktop/OSF_re250424/taskswitch_iER.xlsx")
+```

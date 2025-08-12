@@ -1,0 +1,420 @@
+---
+title: "ANOVA_two_tasks"
+author: "Annie Ke"
+date: "2023-10-24"
+output: 
+ html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r}
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr,dplyr)
+```
+
+#语言任务
+```{r}
+setwd("C:/Users/sukia/Desktop/OSF_re250424")
+data <-read.xlsx("C:/Users/sukia/Desktop/OSF_re250424/data_iER_sum.xlsx")
+```
+
+##反应时
+```{r}
+data_RT <- subset(data,ACC==1)%>%subset(RT!="NA")
+
+# get means value of every subject
+data_RT_des_mean_sub <- data_RT%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain_region,Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = RT_mean)
+
+# write.xlsx(data_RT_des_mean_sub,"C:/Users/sukia/Desktop/OSF_re250424/des_lang_rt.xlsx")
+
+# calculate mean and sd individually
+data_RT_des_mean1 <- data_RT%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain_region,Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = RT_mean)%>%
+  mutate(
+    IFG_sc = IFG_S - IFG_R,
+    IFG_mc = IFG_R - IFG_B,
+    pTL_sc = pTL_S - pTL_R,
+    pTL_mc = pTL_R - pTL_B,
+    vertex_sc = vertex_S - vertex_R,
+    vertex_mc = vertex_R - vertex_B)
+
+
+data_RT_des_mean_sc <- data_RT_des_mean1%>%
+  summarise(
+    IFG_sc_mean = mean(IFG_sc),
+    IFG_mc_mean = mean(IFG_mc),
+    pTL_sc_mean = mean(pTL_sc),
+    pTL_mc_mean = mean(pTL_mc),
+    vertex_sc_mean = mean(vertex_sc),
+    vertex_mc_mean = mean(vertex_mc),
+    IFG_sc_sd = sd(IFG_sc),
+    IFG_mc_sd = sd(IFG_mc),
+    pTL_sc_sd = sd(pTL_sc),
+    pTL_mc_sd = sd(pTL_mc),
+    vertex_sc_sd = sd(vertex_sc),
+    vertex_mc_sd = sd(vertex_mc))
+
+# get total mean and sd of different conditions
+data_RT_des_mean <- data_RT %>%
+  group_by(Subject, Brain_region, Trialtype) %>%
+  summarise(RT_mean = mean(RT, na.rm = TRUE)) %>%  # 忽略 NA
+  ungroup() %>%  # 不需要指定变量，直接 ungroup 整个分组
+  pivot_wider(names_from = c(Brain_region, Trialtype), values_from = RT_mean) %>%
+  summarise(
+    IFG_B = mean(IFG_B, na.rm = TRUE), 
+    IFG_R = mean(IFG_R, na.rm = TRUE),  
+    IFG_S = mean(IFG_S, na.rm = TRUE),  
+    pTL_B = mean(pTL_B, na.rm = TRUE),  
+    pTL_R = mean(pTL_R, na.rm = TRUE),  
+    pTL_S = mean(pTL_S, na.rm = TRUE),  
+    vertex_B = mean(vertex_B, na.rm = TRUE),  
+    vertex_R = mean(vertex_R, na.rm = TRUE),  
+    vertex_S = mean(vertex_S, na.rm = TRUE)   
+  )
+
+data_RT_des_sd <- data_RT%>%group_by(Subject,Brain_region,Trialtype)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain_region,Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = RT_mean)%>%
+  summarise(
+    IFG_B = sd(IFG_B),
+    IFG_R = sd(IFG_R),
+    IFG_S = sd(IFG_S),
+    pTL_B = sd(pTL_B),
+    pTL_R = sd(pTL_R),
+    pTL_S = sd(pTL_S),
+    vertex_B = sd(vertex_B, na.rm = TRUE),
+    vertex_R = sd(vertex_R, na.rm = TRUE),
+    vertex_S = sd(vertex_S, na.rm = TRUE),
+  )
+
+data_RT_des <- rbind(data_RT_des_mean,data_RT_des_sd)
+
+my_data <- data.frame(matrix(nrow = 2, ncol = 1))
+my_data[1, ] <- "mean"
+my_data[2, ] <- "sd"
+
+data_RT_lang_des <- cbind(my_data,data_RT_des)
+
+# person costs
+RTcost_person <- data_RT_des_mean1[,c(1,11:16)] %>%
+  pivot_longer(
+    cols = -Subject, # 除第一列sub外，其余列都要进行转换
+    names_to = c("Brain", "Cost"), # 分解列名
+    names_sep = "_" # 根据“_”进行分隔
+  ) %>%
+  rename(RT = value) %>%
+  filter(!is.na(RT))
+
+outlier.RT <- RTcost_person %>%
+  group_by(Cost) %>%
+  filter(abs(RT - mean(RT)) > (sd(RT) * 2.5))
+
+
+```
+
+## ER
+```{r}
+data_ER <- data
+
+# get means value of every subject
+data_ER_des_mean_sub <- data_ER%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain_region,Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = ER_mean)
+
+# calculate mean and sd individually
+data_ER_des_mean1 <- data_ER%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain_region,Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = ER_mean)%>%
+  mutate(
+    IFG_sc = IFG_S - IFG_R,
+    IFG_mc = IFG_R - IFG_B,
+    pTL_sc = pTL_S - pTL_R,
+    pTL_mc = pTL_R - pTL_B,
+    vertex_sc = vertex_S - vertex_R,
+    vertex_mc = vertex_R - vertex_B)
+# write.xlsx(data_ER_des_mean1,"C:/Users/sukia/Desktop/OSF_re250424/des_lang_er.xlsx")
+
+
+data_ER_des_mean_sc <- data_ER_des_mean1%>%
+  summarise(
+    IFG_sc_mean = mean(IFG_sc),
+    IFG_mc_mean = mean(IFG_mc),
+    pTL_sc_mean = mean(pTL_sc),
+    pTL_mc_mean = mean(pTL_mc),
+    vertex_sc_mean = mean(vertex_sc),
+    vertex_mc_mean = mean(vertex_mc),
+    IFG_sc_sd = sd(IFG_sc),
+    IFG_mc_sd = sd(IFG_mc),
+    pTL_sc_sd = sd(pTL_sc),
+    pTL_mc_sd = sd(pTL_mc),
+    vertex_sc_sd = sd(vertex_sc),
+    vertex_mc_sd = sd(vertex_mc))
+
+data_ER_des_mean <- data_ER%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain_region, Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = ER_mean)%>%
+  summarise(
+    IFG_B = mean(IFG_B),
+    IFG_R = mean(IFG_R),
+    IFG_S = mean(IFG_S),
+    pTL_B = mean(pTL_B),
+    pTL_R = mean(pTL_R),
+    pTL_S = mean(pTL_S),
+    vertex_B = mean(vertex_B, na.rm = TRUE),
+    vertex_R = mean(vertex_R, na.rm = TRUE),
+    vertex_S = mean(vertex_S, na.rm = TRUE),
+  )
+
+data_ER_des_sd <- data_ER%>%group_by(Subject,Brain_region, Trialtype)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain_region, Trialtype)%>%
+  pivot_wider(names_from = c(Brain_region,Trialtype),values_from = ER_mean)%>%
+  summarise(
+    IFG_B = sd(IFG_B),
+    IFG_R = sd(IFG_R),
+    IFG_S = sd(IFG_S),
+    pTL_B = sd(pTL_B),
+    pTL_R = sd(pTL_R),
+    pTL_S = sd(pTL_S),
+    vertex_B = sd(vertex_B, na.rm = TRUE),
+    vertex_R = sd(vertex_R, na.rm = TRUE),
+    vertex_S = sd(vertex_S, na.rm = TRUE)
+  )
+
+data_ER_des <- rbind(data_ER_des_mean,data_ER_des_sd)
+data_ER_lang_des <- cbind(my_data,data_ER_des)
+
+# person costs
+ERcost_person <- data_ER_des_mean1[,c(1,11:16)] %>%
+  pivot_longer(
+    cols = -Subject, # 除第一列sub外，其余列都要进行转换
+    names_to = c("Brain", "Cost"), # 分解列名
+    names_sep = "_" # 根据“_”进行分隔
+  ) %>%
+  rename(ER = value) %>%
+  filter(!is.na(ER))
+
+outlier.ER <- ERcost_person %>%
+  group_by(Cost) %>%
+  filter(abs(ER - mean(ER)) > (sd(ER) * 2.5))
+
+```
+
+#非语言任务
+```{r}
+setwd("C:/Users/sukia/Desktop/OSF_re250424")
+data_nonl <- read_excel("C:/Users/sukia/Desktop/OSF_re250424/taskswitch_iER.xlsx")
+
+data_nonl$Brain[data_nonl$Brain == 111] <- "IFG"
+data_nonl$Brain[data_nonl$Brain == 112] <- "pTL"
+data_nonl$Brain[data_nonl$Brain == 113] <- "vertex"
+```
+
+##反应时
+
+```{r}
+nonl_data_RT <- subset(data_nonl,ACC==1)%>%subset(RT!="NA")
+
+# get means value of every subject
+nl_data_RT_des_mean_sub <- nonl_data_RT%>%group_by(Subject,Brain, Typ)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = RT_mean)
+
+# calculate mean and sd individually
+nl_data_RT_des_mean1 <- nonl_data_RT%>%group_by(Subject,Brain, Typ)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = RT_mean)%>%
+  mutate(
+    IFG_sc = IFG_S - IFG_R,
+    IFG_mc = IFG_R - IFG_B,
+    pTL_sc = pTL_S - pTL_R,
+    pTL_mc = pTL_R - pTL_B,
+    vertex_sc = vertex_S - vertex_R,
+    vertex_mc = vertex_R - vertex_B)
+
+# write.xlsx(nl_data_RT_des_mean1,"C:/Users/sukia/Desktop/OSF_re250424/des_NON_RT.xlsx")
+
+nl_data_RT_des_mean_sc <- nl_data_RT_des_mean1%>%
+  summarise(
+    IFG_sc_mean = mean(IFG_sc),
+    IFG_mc_mean = mean(IFG_mc),
+    pTL_sc_mean = mean(pTL_sc),
+    pTL_mc_mean = mean(pTL_mc),
+    vertex_sc_mean = mean(vertex_sc),
+    vertex_mc_mean = mean(vertex_mc),
+    IFG_sc_sd = sd(IFG_sc),
+    IFG_mc_sd = sd(IFG_mc),
+    pTL_sc_sd = sd(pTL_sc),
+    pTL_mc_sd = sd(pTL_mc),
+    vertex_sc_sd = sd(vertex_sc),
+    vertex_mc_sd = sd(vertex_mc))
+
+nonl_data_RT_des_mean <- nonl_data_RT%>%group_by(Subject,Brain, Typ)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain,Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = RT_mean)%>%
+  summarise(
+    IFG_B = mean(IFG_B),
+    IFG_R = mean(IFG_R),
+    IFG_S = mean(IFG_S),
+    pTL_B = mean(pTL_B),
+    pTL_R = mean(pTL_R),
+    pTL_S = mean(pTL_S),
+    vertex_B = mean(vertex_B, na.rm = TRUE),
+    vertex_R = mean(vertex_R, na.rm = TRUE),
+    vertex_S = mean(vertex_S, na.rm = TRUE)
+  )
+
+nonl_data_RT_des_sd <- nonl_data_RT%>%group_by(Subject,Brain,Typ)%>%
+  summarise(RT_mean = mean(RT))%>%
+  ungroup(Subject,Brain,Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = RT_mean)%>%
+  summarise(
+    IFG_B = sd(IFG_B),
+    IFG_R = sd(IFG_R),
+    IFG_S = sd(IFG_S),
+    pTL_B = sd(pTL_B),
+    pTL_R = sd(pTL_R),
+    pTL_S = sd(pTL_S),
+    vertex_B = sd(vertex_B, na.rm = TRUE),
+    vertex_R = sd(vertex_R, na.rm = TRUE),
+    vertex_S = sd(vertex_S, na.rm = TRUE)
+  )
+
+nonl_data_RT_des <- rbind(nonl_data_RT_des_mean,nonl_data_RT_des_sd)
+
+my_data <- data.frame(matrix(nrow = 2, ncol = 1))
+my_data[1, ] <- "mean"
+my_data[2, ] <- "sd"
+
+nonl_data_RT_lang_des <- cbind(my_data,nonl_data_RT_des)
+
+# person costs
+RTcost_person <- nl_data_RT_des_mean1[,c(1,11:16)] %>%
+  pivot_longer(
+    cols = -Subject, # 除第一列sub外，其余列都要进行转换
+    names_to = c("Brain", "Cost"), # 分解列名
+    names_sep = "_" # 根据“_”进行分隔
+  ) %>%
+  rename(RT = value) %>%
+  filter(!is.na(RT))
+
+outlier.RT <- RTcost_person %>%
+  group_by(Cost) %>%
+  filter(abs(RT - mean(RT)) > (sd(RT) * 2.5))
+
+
+```
+
+##错误率
+
+```{r}
+nonl_data_ER <- data_nonl
+
+# get means value of every subject
+nl_data_ER_des_mean_sub <- nonl_data_ER%>%group_by(Subject,Brain, Typ)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = ER_mean)
+
+# calculate mean and sd individually
+nl_data_ER_des_mean1 <- nonl_data_ER%>%group_by(Subject,Brain, Typ)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = ER_mean)%>%
+  mutate(
+    IFG_sc = IFG_S - IFG_R,
+    IFG_mc = IFG_R - IFG_B,
+    pTL_sc = pTL_S - pTL_R,
+    pTL_mc = pTL_R - pTL_B,
+    vertex_sc = vertex_S - vertex_R,
+    vertex_mc = vertex_R - vertex_B)
+
+# write.xlsx(nl_data_ER_des_mean1,"C:/Users/sukia/Desktop/OSF_re250424/des_NON_ER.xlsx")
+
+nl_data_ER_des_mean_sc <- nl_data_ER_des_mean1%>%
+  summarise(
+    IFG_sc_mean = mean(IFG_sc),
+    IFG_mc_mean = mean(IFG_mc),
+    pTL_sc_mean = mean(pTL_sc),
+    pTL_mc_mean = mean(pTL_mc),
+    vertex_sc_mean = mean(vertex_sc),
+    vertex_mc_mean = mean(vertex_mc),
+    IFG_sc_sd = sd(IFG_sc),
+    IFG_mc_sd = sd(IFG_mc),
+    pTL_sc_sd = sd(pTL_sc),
+    pTL_mc_sd = sd(pTL_mc),
+    vertex_sc_sd = sd(vertex_sc),
+    vertex_mc_sd = sd(vertex_mc))
+
+
+# get total mean and sd of different conditions
+nonl_data_ER_des_mean <- nonl_data_ER%>%group_by(Subject,Brain, Typ)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = ER_mean)%>%
+  summarise(
+    IFG_B = mean(IFG_B),
+    IFG_R = mean(IFG_R),
+    IFG_S = mean(IFG_S),
+    pTL_B = mean(pTL_B),
+    pTL_R = mean(pTL_R),
+    pTL_S = mean(pTL_S),
+    vertex_B = mean(vertex_B),
+    vertex_R = mean(vertex_R),
+    vertex_S = mean(vertex_S),
+  )
+
+nonl_data_ER_des_sd <- nonl_data_ER%>%group_by(Subject,Brain, Typ)%>%
+  summarise(ER_mean = mean(1-ACC))%>%
+  ungroup(Subject,Brain, Typ)%>%
+  pivot_wider(names_from = c(Brain,Typ),values_from = ER_mean)%>%
+  summarise(
+    IFG_B = sd(IFG_B),
+    IFG_R = sd(IFG_R),
+    IFG_S = sd(IFG_S),
+    pTL_B = sd(pTL_B),
+    pTL_R = sd(pTL_R),
+    pTL_S = sd(pTL_S),
+    vertex_B = sd(vertex_B),
+    vertex_R = sd(vertex_R),
+    vertex_S = sd(vertex_S),
+  )
+
+nonl_data_ER_des <- rbind(nonl_data_ER_des_mean,nonl_data_ER_des_sd)
+nonl_data_ER_lang_des <- cbind(my_data,nonl_data_ER_des)
+
+
+# person costs
+ERcost_person <- nl_data_ER_des_mean1[,c(1,11:16)] %>%
+  pivot_longer(
+    cols = -Subject, # 除第一列sub外，其余列都要进行转换
+    names_to = c("Brain", "Cost"), # 分解列名
+    names_sep = "_" # 根据“_”进行分隔
+  ) %>%
+  rename(ER = value) %>%
+  filter(!is.na(ER))
+
+outlier.ER <- ERcost_person %>%
+  group_by(Cost) %>%
+  filter(abs(ER - mean(ER)) > (sd(ER) * 2.5))
+```
+```{r}
+# merge descriptive data
+combine_data <- rbind(data_RT_lang_des,data_ER_lang_des,nonl_data_RT_lang_des,nonl_data_ER_lang_des)
+
+```
+

@@ -1,0 +1,187 @@
+---
+title: "mix effect of linguistic task"
+author: "Annie Ke"
+date: "2024-04-03"
+output: html_document
+---
+
+# remove outliers
+```{r, message=FALSE}
+# install.packages(c("pacman","R.utils"))
+pacman::p_load(tidyverse,readxl,openxlsx,lmerTest,emmeans,R.utils,ggpubr,data.table,dplyr,bruceR)
+
+#install.packages("devtools")
+#install.packages("sjPlot")
+#install.packages("gghalves")
+#install.packages("effects")
+#install.packages("MuMIn")#计算AICc值
+library(sjPlot)
+library(reshape2)  
+library(devtools)
+#install_github("JanCoUnchained/ggunchained")
+library(ggunchained)
+library(ggplot2)
+library(gghalves)
+library(tidyverse)
+library(plyr)
+detach('package:plyr')
+library(emmeans)
+library(effects)
+library(MuMIn)
+#install.packages("bestNormalize")
+library(bestNormalize)
+```
+
+```{r}
+setwd("C:/Users/sukia/Desktop/OSF_re250424")
+data <-read.xlsx("C:/Users/sukia/Desktop/OSF_re250424/data_iER_sum.xlsx")
+```
+
+# RT
+## Switching costs
+```{r}
+data.sc.RT <- data %>%
+  filter(Trialtype != "B" & ACC == 1 & !is.na(RT) & !(Subject %in% c(111, 132) & Brain_region == "IFG"))
+data.sc.RT$trialtype<- ifelse(data.sc.RT$Trialtype =="S",0.5,-0.5)
+data.sc.RT$brain <- as.factor(data.sc.RT$Brain_region)
+data.sc.RT$brain <- relevel(data.sc.RT$brain, "vertex")
+
+
+# Normalize
+bn <- bestNormalize(data.sc.RT$RT)
+bn
+data.sc.RT$transRT <- bn$x.t 
+ks.test(data.sc.RT$transRT, 'pnorm', mean(data.sc.RT$transRT, na.rm = TRUE), sd(data.sc.RT$transRT, na.rm = TRUE)) 
+
+# M.sc.RT_full <- lmer(transRT ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype*brain | Item), data.sc.RT)
+# summary(M.sc.RT_full)
+
+Model-2-LS-sc-RT <- lmer(transRT ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item), data.sc.RT)
+summary(Model-2-LS-sc-RT)
+
+# M.sc.RT2 <- lmer(transRT ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype | Item), data.sc.RT)
+# summary(M.sc.RT2)
+# 
+# M.sc.RT3 <- lmer(transRT ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 | Item), data.sc.RT)
+# summary(M.sc.RT3)
+
+# M.sc.RT4 <- lmer(transRT ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item), data.sc.RT)
+# summary(M.sc.RT4)
+
+# M.sc.RT5 <- lmer(transRT ~ trialtype*brain + (1 + brain | Subject) + (1 | Item), data.sc.RT)
+# summary(M.sc.RT5)
+# 
+# anova(Model-2-LS-sc-RT,M.sc.RT5)
+```
+
+## mixing costs
+```{r}
+data.mc.RT <- data%>%
+  filter(Trialtype != "S" & ACC == 1 & !is.na(RT) & !(Subject %in% 104 & Brain_region == "IFG"))
+data.mc.RT$trialtype<- ifelse(data.mc.RT$Trialtype =="R",0.5,-0.5)
+data.mc.RT$brain <- as.factor(data.mc.RT$Brain_region)
+data.mc.RT$brain <- relevel(data.mc.RT$brain, "vertex")
+
+
+# Normalize
+bn <- bestNormalize(data.mc.RT$RT)
+bn
+data.mc.RT$transRT <- bn$x.t 
+ks.test(data.mc.RT$transRT, 'pnorm', mean(data.mc.RT$transRT, na.rm = TRUE), sd(data.mc.RT$transRT, na.rm = TRUE)) 
+
+# M.mc.RT_full <- lmer(transRT ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype*brain | Item), data.mc.RT)
+# summary(M.mc.RT_full)
+
+# M.mc.RT1 <- lmer(transRT ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 | Item), data.mc.RT)
+# summary(M.mc.RT1)
+
+Model-6-LS-mc-RT <- lmer(transRT ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item), data.mc.RT)
+summary(Model-6-LS-mc-RT)
+
+# M.mc.RT3 <- lmer(transRT ~ trialtype*brain + (1 + brain | Subject) + (1 | Item), data.mc.RT)
+# summary(M.mc.RT3)
+
+# M.mc.RT4 <- lmer(transRT ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item), data.mc.RT)
+# summary(M.mc.RT4)
+
+# anova(Model-6-LS-mc-RT,M.mc.RT3)
+```
+
+# ER
+## Switching costs
+```{r}
+data.sc.ER <- data %>%
+  filter(Trialtype != "B" &
+         !(Subject %in% c(123, 133) & Brain_region == "IFG") &
+         !(Subject == 133 & Brain_region == "pTL") &
+         !(Subject == 115 & Brain_region == "vertex"))
+
+data.sc.ER$trialtype<- ifelse(data.sc.ER$Trialtype =="S",0.5,-0.5)
+data.sc.ER$brain <- as.factor(data.sc.ER$Brain_region)
+data.sc.ER$brain <- relevel(data.sc.ER$brain, "vertex")
+
+# M.sc.ER_full = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype*brain | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER_full)
+
+# M.sc.ER1 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype+brain | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER1)
+#
+# M.sc.ER2 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + brain | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER2)
+
+# M.sc.ER3 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER3)
+
+# M.sc.ER4 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER4)
+
+# M.sc.ER5 = glmer((1-ACC) ~ trialtype*brain + (1 + brain | Subject) + (1 | Item),data.sc.ER,family = binomial)
+# summary(M.sc.ER5)
+
+Model-4-LS-sc-ER = glmer((1-ACC) ~ trialtype*brain + (1 | Subject) + (1 | Item),data.sc.ER,family = binomial)
+summary(Model-4-LS-sc-ER)
+
+```
+
+## Mixing costs
+```{r}
+data.mc.ER <- data %>%
+  filter(Trialtype != "S" &
+         !(Subject %in% c(120,133,135) & Brain_region == "vertex"))
+         
+data.mc.ER$trialtype<- ifelse(data.mc.ER$Trialtype =="R",0.5,-0.5)
+data.mc.ER$brain <- as.factor(data.mc.ER$Brain_region)
+data.mc.ER$brain <- relevel(data.mc.ER$brain, "vertex")
+
+# M.mc.ER_full = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype*brain | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER_full)
+
+# M.mc.ER1 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + trialtype+brain | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER1)
+
+# M.mc.ER2 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 + brain | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER2)
+
+# M.mc.ER3 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype*brain | Subject) + (1 | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER3)
+
+# M.mc.ER4 = glmer((1-ACC) ~ trialtype*brain + (1 + trialtype+brain | Subject) + (1 | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER4)
+
+# M.mc.ER5 = glmer((1-ACC) ~ trialtype*brain + (1 + brain | Subject) + (1 | Item),data.mc.ER,family = binomial)
+# summary(M.mc.ER5)
+
+Model-8-LS-mc-ER = glmer((1-ACC) ~ trialtype*brain + (1 | Subject) + (1 | Item),data.mc.ER,family = binomial)
+summary(Model-8-LS-mc-ER)
+
+```
+
+# tables
+```{r}
+## RT
+tab_model(Model-2-LS-sc-RT, Model-6-LS-mc-RT,show.stat = 1, show.icc = 0, show.re.var = 0, show.ci = FALSE,string.est = "Beta", string.stat = "t",dv.labels = c("sc RT","mc RT"))
+
+## ER
+tab_model(Model-4-LS-sc-ER, Model-8-LS-mc-ER, show.stat = 1, show.icc = 0, show.re.var = 0, show.ci = FALSE,string.est = "Beta", string.stat = "z",dv.labels = c("sc ER","mc ER"))
+
+```
