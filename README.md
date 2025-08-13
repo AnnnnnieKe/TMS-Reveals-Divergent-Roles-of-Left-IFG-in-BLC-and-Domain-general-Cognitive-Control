@@ -1,6 +1,4 @@
 # TMS-Reveals-Divergent-Roles-of-Left-IFG-in-BLC-and-Domain-general-Cognitive-Control
-Transcranial Magnetic Stimulation Reveals Divergent Roles of Left Inferior Frontal Gyrus in Bilingual Language Control and Domain-general Cognitive Control
-
 Project Title:  
 Transcranial Magnetic Stimulation over the Left Inferior Frontal Gyrus and Left Posterior Temporal Lobe Reveals Diverging Neural Mechanisms of Bilingual Language Control and Domain-general Cognitive Control  
 ________________________________________
